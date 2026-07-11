@@ -8,7 +8,7 @@ interface RazorpaySetupGuideProps {
 }
 
 export default function RazorpaySetupGuide({ isOpen, onClose, cartTotal = 2499 }: RazorpaySetupGuideProps) {
-  const [activeTab, setActiveTab] = useState<'steps' | 'code' | 'sandbox'>('steps');
+  const [activeTab, setActiveTab] = useState<'steps' | 'code' | 'vercel' | 'sandbox'>('steps');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   
   // Sandbox test states
@@ -275,10 +275,10 @@ router.post('/api/payments/verify-signature', (req, res) => {
         </div>
 
         {/* Navigation Tabs */}
-        <div className="flex border-b border-beige-divider bg-sand-soft/50 text-xs font-semibold uppercase tracking-wider">
+        <div className="flex flex-wrap border-b border-beige-divider bg-sand-soft/50 text-xs font-semibold uppercase tracking-wider">
           <button 
             onClick={() => setActiveTab('steps')}
-            className={`flex-1 py-3 text-center border-b-2 cursor-pointer transition-all ${activeTab === 'steps' ? 'border-champagne-gold text-charcoal bg-white font-bold' : 'border-transparent text-taupe-muted hover:text-charcoal'}`}
+            className={`flex-1 min-w-[120px] py-3 text-center border-b-2 cursor-pointer transition-all ${activeTab === 'steps' ? 'border-champagne-gold text-charcoal bg-white font-bold' : 'border-transparent text-taupe-muted hover:text-charcoal'}`}
           >
             <span className="flex items-center justify-center gap-1.5">
               <Key className="w-3.5 h-3.5" />
@@ -287,7 +287,7 @@ router.post('/api/payments/verify-signature', (req, res) => {
           </button>
           <button 
             onClick={() => setActiveTab('code')}
-            className={`flex-1 py-3 text-center border-b-2 cursor-pointer transition-all ${activeTab === 'code' ? 'border-champagne-gold text-charcoal bg-white font-bold' : 'border-transparent text-taupe-muted hover:text-charcoal'}`}
+            className={`flex-1 min-w-[120px] py-3 text-center border-b-2 cursor-pointer transition-all ${activeTab === 'code' ? 'border-champagne-gold text-charcoal bg-white font-bold' : 'border-transparent text-taupe-muted hover:text-charcoal'}`}
           >
             <span className="flex items-center justify-center gap-1.5">
               <Code className="w-3.5 h-3.5" />
@@ -295,12 +295,21 @@ router.post('/api/payments/verify-signature', (req, res) => {
             </span>
           </button>
           <button 
+            onClick={() => setActiveTab('vercel')}
+            className={`flex-1 min-w-[120px] py-3 text-center border-b-2 cursor-pointer transition-all ${activeTab === 'vercel' ? 'border-champagne-gold text-charcoal bg-white font-bold' : 'border-transparent text-taupe-muted hover:text-charcoal'}`}
+          >
+            <span className="flex items-center justify-center gap-1.5 text-blue-600">
+              <ExternalLink className="w-3.5 h-3.5" />
+              3. GitHub & Vercel
+            </span>
+          </button>
+          <button 
             onClick={() => setActiveTab('sandbox')}
-            className={`flex-1 py-3 text-center border-b-2 cursor-pointer transition-all ${activeTab === 'sandbox' ? 'border-champagne-gold text-charcoal bg-white font-bold' : 'border-transparent text-taupe-muted hover:text-charcoal'}`}
+            className={`flex-1 min-w-[120px] py-3 text-center border-b-2 cursor-pointer transition-all ${activeTab === 'sandbox' ? 'border-champagne-gold text-charcoal bg-white font-bold' : 'border-transparent text-taupe-muted hover:text-charcoal'}`}
           >
             <span className="flex items-center justify-center gap-1.5 text-champagne-gold">
               <Cpu className="w-3.5 h-3.5 animate-pulse" />
-              3. Interactive Sandbox
+              4. Interactive Sandbox
             </span>
           </button>
         </div>
@@ -477,6 +486,90 @@ router.post('/api/payments/verify-signature', (req, res) => {
 
               </div>
 
+            </div>
+          )}
+
+          {/* TAB 3: GitHub & Vercel Deployment Guide */}
+          {activeTab === 'vercel' && (
+            <div className="space-y-6 animate-fadeIn text-sm">
+              <div className="bg-blue-50 border border-blue-200 text-blue-900 p-4 rounded-lg flex items-start gap-3">
+                <ExternalLink className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="font-bold text-sm">Direct GitHub Sync & Vercel Auto-Deployment</h4>
+                  <p className="text-xs text-blue-800 leading-relaxed mt-1">
+                    Vercel integrates natively with your GitHub repository. Follow this checklist to synchronize code updates and host your luxury Perfume Store with absolute zero-downtime.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Section A: GitHub Syncing */}
+                <div className="bg-sand-light border border-beige-divider p-5 rounded-lg space-y-4">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-charcoal text-alabaster font-bold text-xs flex items-center justify-center font-mono">1</span>
+                    <h3 className="font-bold text-charcoal">Synchronize to GitHub</h3>
+                  </div>
+                  <ul className="space-y-2.5 text-xs text-taupe-muted leading-relaxed list-disc pl-4">
+                    <li>
+                      <span className="text-charcoal font-semibold">Export Codebase:</span> Open the Settings menu in this editor, and select <span className="text-charcoal font-semibold">Export to GitHub</span> or download as a <span className="text-charcoal font-semibold">ZIP archive</span>.
+                    </li>
+                    <li>
+                      <span className="text-charcoal font-semibold">Create Repository:</span> Initialize a new repository on your GitHub account (e.g., <code className="bg-white border px-1 rounded font-mono">deeshop-perfume-atelier</code>).
+                    </li>
+                    <li>
+                      <span className="text-charcoal font-semibold">Push Updates:</span> Push the exported files to the repository's primary branch (<code className="bg-white border px-1 rounded font-mono">main</code>).
+                    </li>
+                  </ul>
+                </div>
+
+                {/* Section B: Vercel Setup */}
+                <div className="bg-sand-light border border-beige-divider p-5 rounded-lg space-y-4">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center font-mono">2</span>
+                    <h3 className="font-bold text-charcoal">Deploy on Vercel</h3>
+                  </div>
+                  <ul className="space-y-2.5 text-xs text-taupe-muted leading-relaxed list-disc pl-4">
+                    <li>
+                      <span className="text-charcoal font-semibold">Import Project:</span> Go to <a href="https://vercel.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 font-semibold hover:underline inline-flex items-center gap-0.5">vercel.com <ExternalLink className="w-2.5 h-2.5" /></a>, click <span className="text-charcoal font-semibold">Add New → Project</span>, and select your GitHub repository.
+                    </li>
+                    <li>
+                      <span className="text-charcoal font-semibold">Framework Preset:</span> Vercel automatically detects the <span className="text-charcoal font-semibold">Vite</span> configuration. Keep the default build settings.
+                    </li>
+                    <li>
+                      <span className="text-charcoal font-semibold">Click Deploy:</span> Press deploy! Vercel compiles your files into clean edge-delivered static HTML/CSS.
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* Configure Environment Variables */}
+              <div className="bg-white border border-beige-divider p-5 rounded-lg space-y-3">
+                <span className="text-[10px] text-champagne-gold tracking-widest font-bold uppercase block">CRITICAL CONFIGURATION STEP</span>
+                <h4 className="font-bold text-charcoal flex items-center gap-2">
+                  <Key className="w-4 h-4 text-champagne-gold" />
+                  Define Vercel Environment Variables
+                </h4>
+                <p className="text-xs text-taupe-muted leading-relaxed">
+                  To allow the real Razorpay Gateway checkout to verify payments, you must expose your API Key ID to the browser bundle on Vercel:
+                </p>
+
+                <div className="space-y-3 pt-2">
+                  <div className="bg-sand-light p-4 rounded border border-beige-divider text-xs space-y-3 font-mono">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-beige-divider/50 pb-2">
+                      <span className="text-taupe-muted font-bold text-[10px] uppercase">VARIABLE KEY</span>
+                      <span className="text-charcoal font-bold">VITE_RAZORPAY_KEY_ID</span>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                      <span className="text-taupe-muted font-bold text-[10px] uppercase">VARIABLE VALUE</span>
+                      <span className="text-champagne-gold font-bold">rzp_test_... or rzp_live_...</span>
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-taupe-muted leading-relaxed italic">
+                    💡 <span className="font-semibold text-charcoal">Where to find this setting on Vercel:</span> Go to your Vercel Dashboard → Select your Project → <span className="text-charcoal font-semibold">Settings</span> tab → <span className="text-charcoal font-semibold">Environment Variables</span>. Paste the Key and Value there, click Add, and trigger a redeploy of your project.
+                  </p>
+                </div>
+              </div>
             </div>
           )}
 

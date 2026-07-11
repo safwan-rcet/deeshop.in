@@ -34,6 +34,12 @@ export default function CheckoutModal({ isOpen, cartItems, cartTotal, onClose, o
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Real Razorpay Key Management
+  const [razorpayKeyId, setRazorpayKeyId] = useState<string>(() => {
+    return (import.meta.env.VITE_RAZORPAY_KEY_ID as string) || '';
+  });
+  const [showKeyInput, setShowKeyInput] = useState(false);
+
   // Razorpay Gateway Simulator States
   const [showRazorpaySim, setShowRazorpaySim] = useState(false);
   const [rzpMethod, setRzpMethod] = useState<'card' | 'upi' | 'netbanking' | 'wallet'>('upi');
@@ -199,14 +205,82 @@ export default function CheckoutModal({ isOpen, cartItems, cartTotal, onClose, o
     }, 2000);
   };
 
-  const handleStartRazorpaySim = () => {
-    setRzpStep('select');
-    setRzpLogs([
-      `[${new Date().toLocaleTimeString()}] Initialized Razorpay standard secure overlay v1.2`,
-      `[${new Date().toLocaleTimeString()}] Order ID: order_dev_${Math.floor(100000 + Math.random() * 900000)}`,
-      `[${new Date().toLocaleTimeString()}] Amount to pay: ₹${finalTotal.toLocaleString('en-IN')}`
-    ]);
-    setShowRazorpaySim(true);
+  const handleStartRazorpay = async () => {
+    const keyToUse = razorpayKeyId.trim();
+
+    if (keyToUse) {
+      // Trigger the real Razorpay payment checkout widget
+      setIsSubmitting(true);
+      
+      // Dynamically load checkout.js
+      let isScriptLoaded = !!(window as any).Razorpay;
+      if (!isScriptLoaded) {
+        const loadScript = () => {
+          return new Promise((resolve) => {
+            const script = document.createElement('script');
+            script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+            script.onload = () => resolve(true);
+            script.onerror = () => resolve(false);
+            document.body.appendChild(script);
+          });
+        };
+        isScriptLoaded = (await loadScript()) as boolean;
+      }
+
+      if (!isScriptLoaded) {
+        alert("Unable to load Razorpay Payment Gateway SDK. Please check your internet connection.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      const options = {
+        key: keyToUse,
+        amount: finalTotal * 100, // paise
+        currency: 'INR',
+        name: 'Deeshop Atelier',
+        description: 'Luxury Fragrance Settle',
+        image: 'https://ais-dev-hug6irpkpdruca3i6zojfw-483760666494.asia-southeast1.run.app/src/assets/images/kaaaf_perfume_premium_1783777681280.jpg',
+        handler: function () {
+          // Success callback
+          triggerSuccessfulOrder(paymentMethod === 'Stripe' ? 'Stripe' : 'UPI');
+        },
+        prefill: {
+          name: fullName || 'Valued Customer',
+          email: 'customer@deeshop.in',
+          contact: phone || '9988776655'
+        },
+        notes: {
+          address: `${addressLine}, ${city}, ${state} - ${pincode}`,
+          deployment: 'Vercel / GitHub Connected'
+        },
+        theme: {
+          color: '#1a1a1a'
+        },
+        modal: {
+          ondismiss: function() {
+            setIsSubmitting(false);
+          }
+        }
+      };
+
+      try {
+        const rzp = new (window as any).Razorpay(options);
+        rzp.open();
+      } catch (err: any) {
+        alert(`Razorpay Gateway Error: ${err.message || 'Verification failure'}`);
+        setIsSubmitting(false);
+      }
+    } else {
+      // Fallback to local high-fidelity simulator
+      setRzpStep('select');
+      setRzpLogs([
+        `[${new Date().toLocaleTimeString()}] Initialized Razorpay standard secure overlay v1.2`,
+        `[${new Date().toLocaleTimeString()}] Order ID: order_dev_${Math.floor(100000 + Math.random() * 900000)}`,
+        `[${new Date().toLocaleTimeString()}] Amount to pay: ₹${finalTotal.toLocaleString('en-IN')}`,
+        `[${new Date().toLocaleTimeString()}] (Simulator Mode active. Configure real Key ID to run live payments)`
+      ]);
+      setShowRazorpaySim(true);
+    }
   };
 
   const handleRazorpayPaymentSimSubmit = () => {
@@ -454,20 +528,74 @@ export default function CheckoutModal({ isOpen, cartItems, cartTotal, onClose, o
                     </p>
                   </div>
 
-                  {onOpenRazorpayGuide && (
-                    <div className="bg-sand-light border border-beige-divider p-3.5 rounded-lg text-xs text-taupe-muted flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                      <span>
-                        <span className="text-charcoal font-semibold">Store Administration:</span> Learn how to connect your live Indian Razorpay merchant account with real secure API keys.
-                      </span>
-                      <button 
-                        type="button"
-                        onClick={onOpenRazorpayGuide}
-                        className="text-champagne-gold hover:text-champagne-gold/80 transition-colors font-bold uppercase tracking-wider text-[10px] shrink-0 cursor-pointer border border-beige-divider px-3 py-1 bg-white rounded"
-                      >
-                        Setup Developer Suite
-                      </button>
+                  {/* Razorpay live gateway switcher & indicator */}
+                  <div className="bg-sand-light border border-beige-divider p-4 rounded-lg text-xs space-y-3.5">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-beige-divider/60 pb-3">
+                      <div>
+                        <span className="font-semibold text-charcoal block">Razorpay Gateway Integration:</span>
+                        <span className="text-[11px] text-taupe-muted">
+                          {razorpayKeyId.trim() ? (
+                            <span className="text-emerald-700 font-medium flex items-center gap-1 mt-0.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                              Active Real Gateway Key: <span className="font-mono text-[10px] bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">{razorpayKeyId.trim().substring(0, 12)}...</span>
+                            </span>
+                          ) : (
+                            <span className="text-amber-700 font-medium flex items-center gap-1 mt-0.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                              Running in high-fidelity Simulator Mode
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                      <div className="flex gap-2">
+                        <button 
+                          type="button"
+                          onClick={() => setShowKeyInput(!showKeyInput)}
+                          className="text-charcoal hover:bg-beige-divider/30 font-semibold transition-colors text-[10px] uppercase tracking-wider border border-beige-divider px-2.5 py-1.5 bg-white rounded cursor-pointer"
+                        >
+                          {showKeyInput ? 'Hide Keys Panel' : 'Configure Keys'}
+                        </button>
+                        {onOpenRazorpayGuide && (
+                          <button 
+                            type="button"
+                            onClick={onOpenRazorpayGuide}
+                            className="text-champagne-gold hover:text-champagne-gold/80 transition-colors font-bold uppercase tracking-wider text-[10px] shrink-0 cursor-pointer border border-beige-divider px-2.5 py-1.5 bg-white rounded"
+                          >
+                            Deployment Guide
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  )}
+
+                    {showKeyInput && (
+                      <div className="bg-white p-3 rounded border border-beige-divider space-y-3 animate-fadeIn">
+                        <p className="text-[11px] text-taupe-muted leading-relaxed">
+                          Enter your real <span className="font-semibold text-charcoal">Razorpay Key ID</span> below. Payments will be routed through the secure, official Razorpay Checkout SDK. To persist this permanently across Vercel/GitHub deployments, define the <code className="bg-sand-soft text-charcoal px-1 py-0.5 rounded font-mono text-[10px]">VITE_RAZORPAY_KEY_ID</code> environment variable.
+                        </p>
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] text-taupe-muted uppercase tracking-wider font-bold block">Razorpay Key ID</label>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={razorpayKeyId}
+                              onChange={(e) => setRazorpayKeyId(e.target.value)}
+                              placeholder="rzp_test_... or rzp_live_..."
+                              className="flex-1 bg-sand-light border border-beige-divider rounded px-2.5 py-1.5 font-mono text-xs text-charcoal focus:outline-none focus:border-champagne-gold"
+                            />
+                            {razorpayKeyId && (
+                              <button
+                                type="button"
+                                onClick={() => setRazorpayKeyId('')}
+                                className="text-red-600 hover:text-red-700 font-semibold px-2 text-xs cursor-pointer"
+                              >
+                                Clear
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -583,7 +711,7 @@ export default function CheckoutModal({ isOpen, cartItems, cartTotal, onClose, o
                 <button
                   id="checkout-confirm-btn"
                   type="button"
-                  onClick={paymentMethod === 'COD' ? handlePaymentSubmit : handleStartRazorpaySim}
+                  onClick={paymentMethod === 'COD' ? handlePaymentSubmit : handleStartRazorpay}
                   className="px-6 py-2.5 bg-charcoal text-alabaster hover:bg-charcoal/90 font-bold rounded-lg text-xs tracking-[0.12em] uppercase transition-colors flex items-center gap-2 cursor-pointer"
                 >
                   <ShieldCheck className="w-4 h-4 text-alabaster" />
