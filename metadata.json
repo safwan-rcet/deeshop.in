@@ -1,0 +1,6 @@
+{
+  "name": "deeshop.in",
+  "description": "A luxury e-commerce platform for premium perfumes, featuring Imperial and Kaaaf scents with an integrated payment gateway.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
