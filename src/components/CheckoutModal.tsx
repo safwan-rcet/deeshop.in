@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CartItem, Order } from '../types';
-import { CreditCard, QrCode, Truck, ShieldCheck, RefreshCw, CheckCircle, Info, Lock, Building, Wallet, Terminal, ExternalLink } from 'lucide-react';
+import { CreditCard, QrCode, Truck, ShieldCheck, RefreshCw, CheckCircle, Info, Lock, Building, Wallet, Terminal, ExternalLink, Copy, Check } from 'lucide-react';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -13,85 +13,60 @@ interface CheckoutModalProps {
 
 export default function CheckoutModal({ isOpen, cartItems, cartTotal, onClose, onOrderSuccess, onOpenRazorpayGuide }: CheckoutModalProps) {
   // Form state
-  const [fullName, setFullName] = useState('');
+  const [fullName, setFullName] = useState('Muhammed Safwan VV');
   const [phone, setPhone] = useState('9895678163');
-  const [addressLine, setAddressLine] = useState('');
-  const [city, setCity] = useState('');
+  const [addressLine, setAddressLine] = useState('Atelier Premium Residence, Connaught Place');
+  const [city, setCity] = useState('New Delhi');
   const [state, setState] = useState('Delhi');
-  const [pincode, setPincode] = useState('');
+  const [pincode, setPincode] = useState('110001');
 
   // Checkout steps & status
-  const [paymentMethod, setPaymentMethod] = useState<'UPI' | 'Stripe' | 'COD'>('UPI');
   const [checkoutStep, setCheckoutStep] = useState<'details' | 'payment' | 'verifying'>('details');
-  const [upiTimer, setUpiTimer] = useState(300); // 5 minutes count down
-  const [upiStatus, setUpiStatus] = useState<'pending' | 'success'>('pending');
   
-  // Card Inputs
-  const [cardNumber, setCardNumber] = useState('');
-  const [cardExpiry, setCardExpiry] = useState('');
-  const [cardCvv, setCardCvv] = useState('');
+  // Unique Order and Invoice details
+  const [orderId, setOrderId] = useState('');
+  const [invoiceNumber, setInvoiceNumber] = useState('');
 
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Real Razorpay Key Management
-  const [razorpayKeyId, setRazorpayKeyId] = useState<string>(() => {
-    return (import.meta.env.VITE_RAZORPAY_KEY_ID as string) || '';
-  });
+  // Merchant details
   const [merchantUpiId, setMerchantUpiId] = useState<string>(() => {
     return (import.meta.env.VITE_MERCHANT_UPI_ID as string) || 'razorpay.me/@muhammedsafwanvv';
   });
-  const [showKeyInput, setShowKeyInput] = useState(false);
 
-  // Helper to parse UPI ID or Razorpay Personal pay link
-  const getQrData = () => {
-    const cleanId = merchantUpiId.trim();
-    if (!cleanId) return '';
-    if (cleanId.includes('razorpay.me') || cleanId.startsWith('http://') || cleanId.startsWith('https://')) {
-      if (!cleanId.startsWith('http')) {
-        return `https://${cleanId}`;
-      }
-      return cleanId;
-    }
-    return `upi://pay?pa=${encodeURIComponent(cleanId)}&pn=DeeShop%20Atelier&am=1.00&cu=INR&tn=Order`;
+  const [copiedUpi, setCopiedUpi] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [showQr, setShowQr] = useState(false);
+
+  const handleCopyUpi = () => {
+    navigator.clipboard.writeText(merchantUpiId);
+    setCopiedUpi(true);
+    setTimeout(() => setCopiedUpi(false), 2000);
   };
 
-  // Razorpay Gateway Simulator States
-  const [showRazorpaySim, setShowRazorpaySim] = useState(false);
-  const [rzpMethod, setRzpMethod] = useState<'card' | 'upi' | 'netbanking' | 'wallet'>('upi');
-  const [rzpCardNumber, setRzpCardNumber] = useState('4242 4242 4242 4242');
-  const [rzpCardExpiry, setRzpCardExpiry] = useState('12/28');
-  const [rzpCardCvv, setRzpCardCvv] = useState('123');
-  const [rzpUpiId, setRzpUpiId] = useState('customer@okhdfcbank');
-  const [rzpBank, setRzpBank] = useState('SBI');
-  const [rzpWallet, setRzpWallet] = useState('Paytm');
-  const [rzpStep, setRzpStep] = useState<'select' | 'processing' | 'success'>('select');
-  const [rzpLogs, setRzpLogs] = useState<string[]>([]);
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(getUpiPaymentLink());
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
+  };
 
   // Math
   const shippingCharge = cartTotal >= 3000 ? 0 : 150;
   const taxAmount = Math.round(cartTotal * 0.18); 
   const finalTotal = cartTotal + shippingCharge;
 
-  // Countdown timer for UPI QR
+  // Pre-generate unique order identifiers on mount/open
   useEffect(() => {
-    if (checkoutStep === 'payment' && paymentMethod === 'UPI' && upiTimer > 0) {
-      const timer = setInterval(() => {
-        setUpiTimer((prev) => prev - 1);
-      }, 1000);
-      return () => clearInterval(timer);
+    if (isOpen) {
+      setOrderId(`DEE-${Math.floor(100000 + Math.random() * 900000)}`);
+      setInvoiceNumber(`INV-2026-${Math.floor(5000 + Math.random() * 5000)}`);
+    } else {
+      setOrderId('');
+      setInvoiceNumber('');
+      setCheckoutStep('details');
     }
-  }, [checkoutStep, paymentMethod, upiTimer]);
-
-  // Simulate auto-payment recognition for Razorpay UPI (after 12 seconds)
-  useEffect(() => {
-    if (checkoutStep === 'payment' && paymentMethod === 'UPI' && upiStatus === 'pending') {
-      const autoPay = setTimeout(() => {
-        setUpiStatus('success');
-      }, 12000);
-      return () => clearTimeout(autoPay);
-    }
-  }, [checkoutStep, paymentMethod, upiStatus]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -121,71 +96,36 @@ export default function CheckoutModal({ isOpen, cartItems, cartTotal, onClose, o
     }
   };
 
-  const formatTimer = (secs: number) => {
-    const mins = Math.floor(secs / 60);
-    const remaining = secs % 60;
-    return `${mins}:${remaining < 10 ? '0' : ''}${remaining}`;
-  };
-
-  const handlePaymentSubmit = () => {
-    if (paymentMethod === 'Stripe') {
-      const errors: Record<string, string> = {};
-      if (cardNumber.replace(/\s/g, '').length !== 16) errors.card = 'Invalid 16-digit card number';
-      if (!/^\d{2}\/\d{2}$/.test(cardExpiry)) errors.expiry = 'Use MM/YY';
-      if (cardCvv.length !== 3) errors.cvv = 'CVV must be 3 digits';
-      
-      if (Object.keys(errors).length > 0) {
-        setFormErrors(errors);
-        return;
-      }
-    }
-
-    setCheckoutStep('verifying');
-    setIsSubmitting(true);
-
-    // Simulate payment processing
-    setTimeout(() => {
-      const orderId = `DEE-${Math.floor(100000 + Math.random() * 900000)}`;
-      const invoiceNumber = `INV-2026-${Math.floor(5000 + Math.random() * 5000)}`;
-      
-      const newOrder: Order = {
-        id: orderId,
-        date: new Date().toLocaleDateString('en-IN', {
-          day: '2-digit',
-          month: 'long',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit'
-        }),
-        items: [...cartItems],
-        shippingAddress: {
-          fullName,
-          phone,
-          addressLine,
-          city,
-          state,
-          pincode
-        },
-        paymentMethod,
-        paymentStatus: paymentMethod === 'COD' ? 'Pending' : 'Paid',
-        totalAmount: finalTotal,
-        shippingCharge,
-        taxAmount,
-        orderStatus: 'Confirmed',
-        invoiceNumber
-      };
-
-      onOrderSuccess(newOrder);
-      setIsSubmitting(false);
-    }, 3000);
-  };
-
-  const triggerSuccessfulOrder = (method: 'UPI' | 'Stripe' | 'COD') => {
-    setCheckoutStep('verifying');
-    setIsSubmitting(true);
+  // Helper to construct dynamic Google Pay / UPI Link
+  const getUpiPaymentLink = () => {
+    const cleanId = merchantUpiId.trim();
+    if (!cleanId) return '';
     
-    const orderId = `DEE-${Math.floor(100000 + Math.random() * 900000)}`;
-    const invoiceNumber = `INV-2026-${Math.floor(5000 + Math.random() * 5000)}`;
+    if (cleanId.includes('razorpay.me') || cleanId.startsWith('http://') || cleanId.startsWith('https://')) {
+      let baseUrl = cleanId;
+      if (!baseUrl.startsWith('http')) {
+        baseUrl = `https://${baseUrl}`;
+      }
+      const separator = baseUrl.includes('?') ? '&' : '?';
+      return `${baseUrl}${separator}amount=${finalTotal}&note=${encodeURIComponent(invoiceNumber || orderId)}`;
+    }
+    
+    // Fallback or standard UPI ID address format
+    return `upi://pay?pa=${encodeURIComponent(cleanId)}&pn=${encodeURIComponent("Muhammed Safwan VV")}&am=${finalTotal}&cu=INR&tn=${encodeURIComponent(invoiceNumber || orderId)}`;
+  };
+
+  const handleProceedToPay = () => {
+    const paymentLink = getUpiPaymentLink();
+    if (paymentLink) {
+      window.open(paymentLink, '_blank');
+    }
+    
+    // Set view to "Payment Submitted" confirmation step
+    setCheckoutStep('verifying');
+  };
+
+  const handleConfirmOrder = () => {
+    setIsSubmitting(true);
     
     const newOrder: Order = {
       id: orderId,
@@ -205,8 +145,8 @@ export default function CheckoutModal({ isOpen, cartItems, cartTotal, onClose, o
         state,
         pincode
       },
-      paymentMethod: method,
-      paymentStatus: method === 'COD' ? 'Pending' : 'Paid',
+      paymentMethod: 'UPI',
+      paymentStatus: 'Paid',
       totalAmount: finalTotal,
       shippingCharge,
       taxAmount,
@@ -217,126 +157,7 @@ export default function CheckoutModal({ isOpen, cartItems, cartTotal, onClose, o
     setTimeout(() => {
       onOrderSuccess(newOrder);
       setIsSubmitting(false);
-      setShowRazorpaySim(false);
-    }, 2000);
-  };
-
-  const handleStartRazorpay = async () => {
-    const keyToUse = razorpayKeyId.trim();
-
-    if (keyToUse) {
-      // Trigger the real Razorpay payment checkout widget
-      setIsSubmitting(true);
-      
-      // Dynamically load checkout.js
-      let isScriptLoaded = !!(window as any).Razorpay;
-      if (!isScriptLoaded) {
-        const loadScript = () => {
-          return new Promise((resolve) => {
-            const script = document.createElement('script');
-            script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-            script.onload = () => resolve(true);
-            script.onerror = () => resolve(false);
-            document.body.appendChild(script);
-          });
-        };
-        isScriptLoaded = (await loadScript()) as boolean;
-      }
-
-      if (!isScriptLoaded) {
-        alert("Unable to load Razorpay Payment Gateway SDK. Please check your internet connection.");
-        setIsSubmitting(false);
-        return;
-      }
-
-      const options = {
-        key: keyToUse,
-        amount: finalTotal * 100, // paise
-        currency: 'INR',
-        name: 'Deeshop Atelier',
-        description: 'Luxury Fragrance Settle',
-        image: 'https://ais-dev-hug6irpkpdruca3i6zojfw-483760666494.asia-southeast1.run.app/src/assets/images/kaaaf_perfume_premium_1783777681280.jpg',
-        handler: function () {
-          // Success callback
-          triggerSuccessfulOrder(paymentMethod === 'Stripe' ? 'Stripe' : 'UPI');
-        },
-        prefill: {
-          name: fullName || 'Valued Customer',
-          contact: phone || '9895678163'
-        },
-        notes: {
-          address: `${addressLine}, ${city}, ${state} - ${pincode}`,
-          deployment: 'Vercel / GitHub Connected'
-        },
-        theme: {
-          color: '#1a1a1a'
-        },
-        modal: {
-          ondismiss: function() {
-            setIsSubmitting(false);
-          }
-        }
-      };
-
-      try {
-        const rzp = new (window as any).Razorpay(options);
-        rzp.open();
-      } catch (err: any) {
-        alert(`Razorpay Gateway Error: ${err.message || 'Verification failure'}`);
-        setIsSubmitting(false);
-      }
-    } else {
-      // Fallback to local high-fidelity simulator
-      setRzpStep('select');
-      setRzpLogs([
-        `[${new Date().toLocaleTimeString()}] Initialized Razorpay standard secure overlay v1.2`,
-        `[${new Date().toLocaleTimeString()}] Order ID: order_dev_${Math.floor(100000 + Math.random() * 900000)}`,
-        `[${new Date().toLocaleTimeString()}] Amount to pay: ₹${finalTotal.toLocaleString('en-IN')}`,
-        `[${new Date().toLocaleTimeString()}] (Simulator Mode active. Configure real Key ID to run live payments)`
-      ]);
-      setShowRazorpaySim(true);
-    }
-  };
-
-  const handleRazorpayPaymentSimSubmit = () => {
-    setRzpStep('processing');
-    const addLog = (msg: string, delay: number) => {
-      setTimeout(() => {
-        setRzpLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`]);
-      }, delay);
-    };
-
-    addLog("Initiating SSL handshake with api.razorpay.com...", 300);
-    addLog(`Authorizing via instrument: ${rzpMethod.toUpperCase()}`, 700);
-    
-    if (rzpMethod === 'card') {
-      addLog(`Sending tokenized card payload ending in ${rzpCardNumber.slice(-4)}`, 1100);
-      addLog("Waiting for 3D-Secure 2.0 banking approval page...", 1500);
-      addLog("🟢 OTP / Biometric authentication approved successfully!", 2200);
-    } else if (rzpMethod === 'upi') {
-      addLog(`Sending collect request to virtual payment address: ${rzpUpiId}`, 1100);
-      addLog("Awaiting customer response on UPI smartphone device application...", 1600);
-      addLog("🟢 UPI Payment Authorized by customer PSP app!", 2200);
-    } else if (rzpMethod === 'netbanking') {
-      addLog(`Redirecting securely to ${rzpBank} retail netbanking server...`, 1100);
-      addLog("Customer successfully logged in & signed transaction token.", 1700);
-      addLog("🟢 Bank confirms clearance of funds transfer.", 2200);
-    } else {
-      addLog(`Contacting e-Wallet proxy server for ${rzpWallet}...`, 1100);
-      addLog("Deducting available currency reserves from mobile account.", 1700);
-      addLog("🟢 Wallet balance adjusted successfully.", 2200);
-    }
-
-    addLog("Signing transaction metadata with server-side HMAC-SHA256 signature...", 2800);
-    addLog("Capturing payment reference: pay_rzpSim_" + Math.floor(10000000 + Math.random() * 90000000), 3200);
-    
-    setTimeout(() => {
-      setRzpStep('success');
-      setTimeout(() => {
-        // Trigger actual success order
-        triggerSuccessfulOrder(rzpMethod === 'card' ? 'Stripe' : 'UPI');
-      }, 1000);
-    }, 3800);
+    }, 1500);
   };
 
   return (
@@ -464,336 +285,198 @@ export default function CheckoutModal({ isOpen, cartItems, cartTotal, onClose, o
                 </button>
               </div>
             </form>
-          )}
-
-          {checkoutStep === 'payment' && (
-            <div className="space-y-6">
-              {/* Selector Tabs */}
-              <div className="grid grid-cols-3 gap-2 p-1 bg-sand-soft border border-beige-divider rounded-lg text-xs">
+          )}          {checkoutStep === 'payment' && (
+            <div className="space-y-6 animate-fadeIn">
+              {/* Shipping Delivery Information Badge */}
+              <div className="bg-sand-soft border border-beige-divider/70 p-3.5 rounded-lg text-xs text-taupe-muted flex justify-between items-center">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5 text-charcoal font-bold uppercase tracking-wider text-[10px]">
+                    <Truck className="w-3.5 h-3.5 text-champagne-gold" />
+                    Delivery Address
+                  </div>
+                  <p className="leading-normal">
+                    <span className="font-semibold text-charcoal">{fullName}</span> ({phone})<br />
+                    {addressLine}, {city}, {state} - {pincode}
+                  </p>
+                </div>
                 <button
-                  id="pay-tab-upi"
                   type="button"
-                  onClick={() => { setPaymentMethod('UPI'); setFormErrors({}); }}
-                  className={`py-2 px-3 rounded flex flex-col sm:flex-row items-center justify-center gap-1.5 font-semibold transition-all cursor-pointer ${paymentMethod === 'UPI' ? 'bg-charcoal text-alabaster' : 'text-taupe-muted hover:text-charcoal'}`}
+                  onClick={() => setCheckoutStep('details')}
+                  className="px-2.5 py-1 text-[10px] bg-white border border-beige-divider hover:bg-sand-light rounded font-bold uppercase text-charcoal transition-all cursor-pointer shadow-sm"
                 >
-                  <QrCode className="w-4 h-4 shrink-0" />
-                  <span>Razorpay UPI</span>
-                </button>
-                <button
-                  id="pay-tab-stripe"
-                  type="button"
-                  onClick={() => { setPaymentMethod('Stripe'); setFormErrors({}); }}
-                  className={`py-2 px-3 rounded flex flex-col sm:flex-row items-center justify-center gap-1.5 font-semibold transition-all cursor-pointer ${paymentMethod === 'Stripe' ? 'bg-charcoal text-alabaster' : 'text-taupe-muted hover:text-charcoal'}`}
-                >
-                  <CreditCard className="w-4 h-4 shrink-0" />
-                  <span>Stripe Secure</span>
-                </button>
-                <button
-                  id="pay-tab-cod"
-                  type="button"
-                  onClick={() => { setPaymentMethod('COD'); setFormErrors({}); }}
-                  className={`py-2 px-3 rounded flex flex-col sm:flex-row items-center justify-center gap-1.5 font-semibold transition-all cursor-pointer ${paymentMethod === 'COD' ? 'bg-charcoal text-alabaster' : 'text-taupe-muted hover:text-charcoal'}`}
-                >
-                  <Truck className="w-4 h-4 shrink-0" />
-                  <span>Cash on Delivery</span>
+                  Edit Details
                 </button>
               </div>
 
-              {/* UPI QR Payment Block */}
-              {paymentMethod === 'UPI' && (
-                <div className="space-y-4">
-                  <div className="bg-sand-light border border-beige-divider p-4 rounded-lg flex flex-col sm:flex-row items-center gap-6">
-                    <div className="bg-white p-3 rounded-lg border border-beige-divider shadow-sm shrink-0 flex flex-col items-center justify-center relative">
-                      <img
-                        src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(getQrData())}`}
-                        alt="UPI QR Code"
-                        className="w-32 h-32"
-                        referrerPolicy="no-referrer"
-                      />
-                      <span className="text-[9px] text-taupe-muted font-bold tracking-wider uppercase mt-1">Razorpay Secured</span>
-                    </div>
-
-                    <div className="flex-1 space-y-3 text-center sm:text-left">
-                      <div className="flex items-center justify-center sm:justify-start gap-2">
-                        <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
-                        <span className="text-xs text-taupe-muted font-medium">
-                          {merchantUpiId.includes('razorpay.me') ? 'Scan to open your Razorpay Pay Link' : 'Scan with BHIM, GPay, PhonePe, or Paytm'}
-                        </span>
-                      </div>
-                      <h4 className="font-medium text-charcoal text-base">
-                        {merchantUpiId.includes('razorpay.me') ? 'Pay via Razorpay Personal Link' : 'Pay securely via UPI QR Code'}
-                      </h4>
-                      <p className="text-xs text-taupe-muted leading-relaxed">
-                        {merchantUpiId.includes('razorpay.me') ? (
-                          <>
-                            Scan the QR with your smartphone camera to access <span className="text-charcoal font-semibold">muhammedsafwanvv</span>'s secure payment page, or click the link below to pay directly on this device:
-                          </>
-                        ) : (
-                          <>
-                            Scan the dynamically generated Razorpay QR with any UPI app on your smartphone to complete the transaction of <span className="text-champagne-gold font-bold">{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(finalTotal)}</span>.
-                          </>
-                        )}
-                      </p>
-
-                      {merchantUpiId.includes('razorpay.me') && (
-                        <div className="pt-1.5 pb-1 flex justify-center sm:justify-start">
-                          <a
-                            href={getQrData()}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 px-4 py-2 bg-champagne-gold text-charcoal hover:bg-champagne-gold/95 font-bold text-[10px] tracking-wider uppercase rounded-lg shadow-sm transition-colors cursor-pointer"
-                          >
-                            <ExternalLink className="w-3.5 h-3.5" />
-                            Open Razorpay Pay Link
-                          </a>
-                        </div>
-                      )}
-                      
-                      {upiStatus === 'pending' ? (
-                        <div className="text-xs font-mono text-taupe-muted bg-white px-3 py-1.5 border border-beige-divider rounded inline-block">
-                          Awaiting Payment Recognition... {formatTimer(upiTimer)}
-                        </div>
-                      ) : (
-                        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-3 py-1.5 rounded text-xs flex items-center justify-center sm:justify-start gap-1.5 animate-pulse">
-                          <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
-                          <span className="font-semibold">UPI Payment Instantly Captured!</span>
-                        </div>
-                      )}
-                    </div>
+              {/* Secure UPI / GPay Block */}
+              <div className="space-y-4 animate-fadeIn">
+                <div className="bg-sand-light border border-beige-divider p-6 rounded-lg space-y-4">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="text-[10px] text-champagne-gold tracking-widest font-bold uppercase">Direct UPI Channel</span>
                   </div>
-
-                  <div className="flex items-start gap-2 text-[11px] text-taupe-muted bg-sand-soft p-3 rounded border border-beige-divider">
-                    <Info className="w-3.5 h-3.5 text-champagne-gold shrink-0 mt-0.5" />
-                    <p>
-                      <span className="text-charcoal font-semibold">Simulator Assist:</span> The UPI gateway detects simulated payments automatically in 12 seconds. To speed it up, you can click the &quot;Confirm Order&quot; button directly.
+                  
+                  <div className="space-y-2">
+                    <h4 className="font-serif text-lg text-charcoal font-medium">Pay securely via Google Pay / UPI</h4>
+                    <p className="text-xs text-taupe-muted leading-relaxed">
+                      To complete your transaction, click the <strong className="text-charcoal">"Proceed to Pay"</strong> button. This will launch Google Pay or your default UPI app.
                     </p>
                   </div>
 
-                  {/* Razorpay live gateway switcher & indicator */}
-                  <div className="bg-sand-light border border-beige-divider p-4 rounded-lg text-xs space-y-3.5">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-beige-divider/60 pb-3">
-                      <div>
-                        <span className="font-semibold text-charcoal block">Razorpay Gateway Integration:</span>
-                        <span className="text-[11px] text-taupe-muted">
-                          {razorpayKeyId.trim() ? (
-                            <span className="text-emerald-700 font-medium flex items-center gap-1 mt-0.5">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                              Active Real Gateway Key: <span className="font-mono text-[10px] bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">{razorpayKeyId.trim().substring(0, 12)}...</span>
-                            </span>
-                          ) : (
-                            <span className="text-amber-700 font-medium flex items-center gap-1 mt-0.5">
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                              Running in high-fidelity Simulator Mode
-                            </span>
-                          )}
-                        </span>
-                      </div>
-                      <div className="flex gap-2">
-                        <button 
+                  <div className="bg-white p-4 rounded border border-beige-divider/70 space-y-3">
+                    <div className="flex justify-between items-center text-xs pb-2 border-b border-sand-soft">
+                      <span className="text-taupe-muted font-medium">Merchant Name</span>
+                      <span className="text-charcoal font-semibold">Muhammed Safwan VV</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs pb-2 border-b border-sand-soft">
+                      <span className="text-taupe-muted font-medium">UPI Address</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-charcoal font-semibold bg-sand-soft px-2 py-0.5 rounded">{merchantUpiId}</span>
+                        <button
                           type="button"
-                          onClick={() => setShowKeyInput(!showKeyInput)}
-                          className="text-charcoal hover:bg-beige-divider/30 font-semibold transition-colors text-[10px] uppercase tracking-wider border border-beige-divider px-2.5 py-1.5 bg-white rounded cursor-pointer"
+                          onClick={handleCopyUpi}
+                          className="p-1 hover:bg-sand-soft rounded text-taupe-muted hover:text-charcoal transition-colors cursor-pointer"
+                          title="Copy UPI Address"
                         >
-                          {showKeyInput ? 'Hide Keys Panel' : 'Configure Keys'}
+                          {copiedUpi ? <Check className="w-3.5 h-3.5 text-emerald-600 animate-scaleIn" /> : <Copy className="w-3.5 h-3.5" />}
                         </button>
-                        {onOpenRazorpayGuide && (
-                          <button 
-                            type="button"
-                            onClick={onOpenRazorpayGuide}
-                            className="text-champagne-gold hover:text-champagne-gold/80 transition-colors font-bold uppercase tracking-wider text-[10px] shrink-0 cursor-pointer border border-beige-divider px-2.5 py-1.5 bg-white rounded"
-                          >
-                            Deployment Guide
-                          </button>
-                        )}
                       </div>
                     </div>
+                    <div className="flex justify-between items-center text-xs pb-2 border-b border-sand-soft">
+                      <span className="text-taupe-muted font-medium">Invoice Total</span>
+                      <span className="text-charcoal font-bold text-sm">{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(finalTotal)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs pb-2 border-b border-sand-soft">
+                      <span className="text-taupe-muted font-medium">Transaction Note</span>
+                      <span className="font-mono text-charcoal font-medium text-[11px]">{invoiceNumber || orderId}</span>
+                    </div>
+                    
+                    <div className="pt-2 flex flex-wrap justify-between items-center gap-2 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setShowQr(!showQr)}
+                        className="text-champagne-gold hover:text-champagne-gold/80 transition-colors font-bold uppercase tracking-wider text-[10px] flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <QrCode className="w-3.5 h-3.5" />
+                        {showQr ? 'Hide QR Code' : 'Show Pay QR Code'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleCopyLink}
+                        className="text-taupe-muted hover:text-charcoal transition-colors font-semibold uppercase tracking-wider text-[10px] flex items-center gap-1.5 cursor-pointer"
+                      >
+                        {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-600 animate-scaleIn" /> : <Copy className="w-3.5 h-3.5" />}
+                        {copiedLink ? 'Link Copied!' : 'Copy Payment Link'}
+                      </button>
+                    </div>
 
-                    {showKeyInput && (
-                      <div className="bg-white p-3 rounded border border-beige-divider space-y-4 animate-fadeIn">
-                        <p className="text-[11px] text-taupe-muted leading-relaxed">
-                          Enter your real <span className="font-semibold text-charcoal">Razorpay Key ID</span> and <span className="font-semibold text-charcoal">Merchant UPI ID</span> below. To persist these permanently across Vercel/GitHub deployments, define the <code className="bg-sand-soft text-charcoal px-1 py-0.5 rounded font-mono text-[10px]">VITE_RAZORPAY_KEY_ID</code> and <code className="bg-sand-soft text-charcoal px-1 py-0.5 rounded font-mono text-[10px]">VITE_MERCHANT_UPI_ID</code> environment variables.
+                    {showQr && (
+                      <div className="pt-3 border-t border-sand-soft flex flex-col items-center space-y-2 animate-fadeIn">
+                        <div className="bg-white p-2.5 rounded-lg border border-beige-divider/70 shadow-sm inline-block">
+                          <img
+                            src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(getUpiPaymentLink())}`}
+                            alt="UPI Payment QR"
+                            className="w-36 h-36"
+                            referrerPolicy="no-referrer"
+                          />
+                        </div>
+                        <p className="text-[10px] text-taupe-muted text-center max-w-[250px] leading-relaxed">
+                          Scan with any UPI app (GPay, PhonePe, Paytm, BHIM) to pay exactly <strong className="text-charcoal font-bold">₹{finalTotal.toLocaleString('en-IN')}</strong>.
                         </p>
-                        
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] text-taupe-muted uppercase tracking-wider font-bold block">Razorpay Key ID</label>
-                          <div className="flex gap-2">
-                            <input
-                              type="text"
-                              value={razorpayKeyId}
-                              onChange={(e) => setRazorpayKeyId(e.target.value)}
-                              placeholder="rzp_test_... or rzp_live_..."
-                              className="flex-1 bg-sand-light border border-beige-divider rounded px-2.5 py-1.5 font-mono text-xs text-charcoal focus:outline-none focus:border-champagne-gold"
-                            />
-                            {razorpayKeyId && (
-                              <button
-                                type="button"
-                                onClick={() => setRazorpayKeyId('')}
-                                className="text-red-600 hover:text-red-700 font-semibold px-2 text-xs cursor-pointer"
-                              >
-                                Clear
-                              </button>
-                            )}
-                          </div>
-                                         <div className="space-y-1.5 pt-1 border-t border-beige-divider/50">
-                          <label className="text-[10px] text-taupe-muted uppercase tracking-wider font-bold block">Merchant UPI Address or Razorpay Link (for QR Codes)</label>
-                          <div className="flex gap-2">
-                            <input
-                              type="text"
-                              value={merchantUpiId}
-                              onChange={(e) => setMerchantUpiId(e.target.value)}
-                              placeholder="e.g. razorpay.me/@muhammedsafwanvv or safwaanvv@ybl"
-                              className="flex-1 bg-sand-light border border-beige-divider rounded px-2.5 py-1.5 font-mono text-xs text-charcoal focus:outline-none focus:border-champagne-gold"
-                            />
-                            {merchantUpiId !== 'razorpay.me/@muhammedsafwanvv' && (
-                              <button
-                                type="button"
-                                onClick={() => setMerchantUpiId('razorpay.me/@muhammedsafwanvv')}
-                                className="text-taupe-muted hover:text-charcoal font-semibold px-2 text-[10px] uppercase cursor-pointer"
-                              >
-                                Reset Default
-                              </button>
-                            )}
-                          </div>
-                          <span className="text-[9px] text-amber-600 font-medium block mt-1">
-                            ⚠️ Note: The previous hardcoded value "deeshop@ybl" belonged to a developer account (Sujith). Changing this field updates the QR code instantly so scanners query your own secure merchant handle or Razorpay link.
-                          </span>
-                        </div>              </div>
                       </div>
                     )}
                   </div>
                 </div>
-              )}
 
-              {/* Stripe Payment Block */}
-              {paymentMethod === 'Stripe' && (
-                <div className="space-y-4 bg-sand-light border border-beige-divider p-5 rounded-lg">
-                  <div className="flex items-center justify-between border-b border-beige-divider pb-3">
-                    <span className="text-xs font-semibold text-taupe-muted uppercase tracking-wider flex items-center gap-1.5">
-                      <Lock className="w-3.5 h-3.5 text-champagne-gold" />
-                      Stripe secure element (TLS 1.3)
-                    </span>
-                    <span className="text-[10px] text-champagne-gold bg-white border border-beige-divider px-2.5 py-0.5 rounded font-bold uppercase tracking-wider">Test Environment</span>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="space-y-1">
-                      <label className="text-[11px] text-taupe-muted block font-medium">Card Number</label>
-                      <div className="relative">
-                        <input
-                          id="stripe-card-num"
-                          type="text"
-                          maxLength={19}
-                          placeholder="4242  4242  4242  4242 (Any Visa test card)"
-                          value={cardNumber}
-                          onChange={(e) => {
-                            const v = e.target.value.replace(/\s+/g, '').replace(/[^0-9]/gi, '');
-                            const matches = v.match(/\d{4,16}/g);
-                            const match = (matches && matches[0]) || '';
-                            const parts = [];
-                            for (let i = 0, len = match.length; i < len; i += 4) {
-                              parts.push(match.substring(i, i + 4));
-                            }
-                            if (parts.length > 0) {
-                              setCardNumber(parts.join('  '));
-                            } else {
-                              setCardNumber(v);
-                            }
-                          }}
-                          className="w-full bg-white border border-beige-divider rounded-md pl-3 pr-10 py-2 text-sm text-charcoal font-mono focus:outline-none focus:border-champagne-gold transition-colors"
-                        />
-                        <CreditCard className="w-4 h-4 text-taupe-muted absolute right-3 top-3" />
-                      </div>
-                      {formErrors.card && <p className="text-red-500 text-xs mt-1">{formErrors.card}</p>}
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1">
-                        <label className="text-[11px] text-taupe-muted block font-medium">Expiry Date</label>
-                        <input
-                          id="stripe-card-expiry"
-                          type="text"
-                          maxLength={5}
-                          placeholder="MM/YY"
-                          value={cardExpiry}
-                          onChange={(e) => {
-                            let v = e.target.value.replace(/[^0-9]/g, '');
-                            if (v.length > 2) {
-                              v = `${v.substring(0, 2)}/${v.substring(2, 4)}`;
-                            }
-                            setCardExpiry(v);
-                          }}
-                          className="w-full bg-white border border-beige-divider rounded-md px-3 py-2 text-sm text-charcoal font-mono focus:outline-none focus:border-champagne-gold"
-                        />
-                        {formErrors.expiry && <p className="text-red-500 text-xs mt-1">{formErrors.expiry}</p>}
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="text-[11px] text-taupe-muted block font-medium">CVV / CVC</label>
-                        <input
-                          id="stripe-card-cvv"
-                          type="password"
-                          maxLength={3}
-                          placeholder="•••"
-                          value={cardCvv}
-                          onChange={(e) => setCardCvv(e.target.value.replace(/[^0-9]/g, ''))}
-                          className="w-full bg-white border border-beige-divider rounded-md px-3 py-2 text-sm text-charcoal font-mono focus:outline-none focus:border-champagne-gold"
-                        />
-                        {formErrors.cvv && <p className="text-red-500 text-xs mt-1">{formErrors.cvv}</p>}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Cash on Delivery Block */}
-              {paymentMethod === 'COD' && (
-                <div className="bg-sand-light border border-beige-divider p-5 rounded-lg space-y-3">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-emerald-100 rounded-lg text-emerald-800">
-                      <Truck className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-charcoal text-sm">Pay Cash upon BlueDart Safe Delivery</h4>
-                      <p className="text-xs text-taupe-muted">No advance payment required. Cash or UPI accepted at door.</p>
-                    </div>
-                  </div>
-                  <p className="text-xs text-taupe-muted leading-relaxed pt-2 border-t border-beige-divider">
-                    Your package will be dispatched within 12 hours via <span className="text-charcoal font-semibold">BlueDart Premium Air courier</span>. You will receive SMS updates on the registered mobile: <span className="text-champagne-gold font-bold font-mono">{phone}</span> with tracking links.
+                <div className="flex items-start gap-2.5 text-[11px] text-taupe-muted bg-sand-soft p-3 rounded border border-beige-divider">
+                  <Info className="w-3.5 h-3.5 text-champagne-gold shrink-0 mt-0.5" />
+                  <p className="leading-relaxed">
+                    <span className="text-charcoal font-semibold">Multiple Checkout Modes:</span> Click the button below, scan the QR code, or copy the merchant details to pay. Once done, the page will update so you can verify and finalize your shipping invoice.
                   </p>
                 </div>
-              )}
+              </div>
 
-              {/* Back & Submit buttons */}
+              {/* Back & Proceed buttons */}
               <div className="pt-4 border-t border-beige-divider flex justify-between gap-3">
                 <button
                   id="checkout-back-btn"
                   type="button"
                   onClick={() => setCheckoutStep('details')}
-                  className="px-4 py-2.5 bg-sand-soft text-charcoal hover:bg-beige-divider rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                  className="px-4 py-2.5 bg-sand-soft text-charcoal hover:bg-beige-divider rounded-lg text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer"
                 >
                   Back to Delivery
                 </button>
-                <button
+                <a
                   id="checkout-confirm-btn"
-                  type="button"
-                  onClick={paymentMethod === 'COD' ? handlePaymentSubmit : handleStartRazorpay}
-                  className="px-6 py-2.5 bg-charcoal text-alabaster hover:bg-charcoal/90 font-bold rounded-lg text-xs tracking-[0.12em] uppercase transition-colors flex items-center gap-2 cursor-pointer"
+                  href={getUpiPaymentLink()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setCheckoutStep('verifying')}
+                  className="px-6 py-2.5 bg-charcoal text-alabaster hover:bg-charcoal/90 font-bold rounded-lg text-xs tracking-[0.12em] uppercase transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm text-center"
                 >
                   <ShieldCheck className="w-4 h-4 text-alabaster" />
-                  <span>{paymentMethod === 'COD' ? 'Confirm and Order' : 'Pay via Razorpay'}</span>
-                </button>
+                  <span>Proceed to Pay</span>
+                </a>
               </div>
             </div>
           )}
 
           {checkoutStep === 'verifying' && (
-            <div className="py-12 flex flex-col items-center justify-center text-center space-y-4">
-              <RefreshCw className="w-10 h-10 text-champagne-gold animate-spin" />
-              <div className="space-y-1">
-                <h4 className="text-base font-bold text-charcoal uppercase tracking-wider">Securing Transaction...</h4>
-                <p className="text-xs text-taupe-muted max-w-sm">
-                  Connecting to banking gateway. Validating 3D secure tokens and transmitting double-encrypted invoice telemetry. Please do not close or reload.
-                </p>
+            <div className="space-y-6 py-4 animate-fadeIn">
+              <div className="bg-sand-light border border-beige-divider/80 p-6 rounded-lg text-center space-y-4">
+                <div className="w-12 h-12 bg-champagne-gold/15 border border-champagne-gold/30 rounded-full flex items-center justify-center mx-auto">
+                  <CheckCircle className="w-6 h-6 text-champagne-gold" />
+                </div>
+                
+                <div className="space-y-2">
+                  <h3 className="font-serif text-xl text-charcoal font-medium">Payment Submitted.</h3>
+                  <h4 className="text-xs text-champagne-gold font-bold uppercase tracking-widest">Your order is being verified.</h4>
+                  <p className="text-xs text-taupe-muted max-w-md mx-auto leading-relaxed">
+                    Once you have completed the transfer in Google Pay or your UPI client, please click the button below to secure your items and auto-generate your tax-paid GST invoice.
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-white border border-beige-divider rounded-lg p-4 divide-y divide-sand-soft text-xs space-y-3">
+                <div className="flex justify-between items-center pb-2">
+                  <span className="text-taupe-muted">Invoice Reference</span>
+                  <span className="font-mono text-charcoal font-semibold bg-sand-soft px-2.5 py-1 rounded">{invoiceNumber}</span>
+                </div>
+                <div className="flex justify-between items-center pt-2 pb-2">
+                  <span className="text-taupe-muted">Order Identifier</span>
+                  <span className="font-mono text-charcoal font-semibold">{orderId}</span>
+                </div>
+                <div className="flex justify-between items-center pt-2 pb-2">
+                  <span className="text-taupe-muted">Amount Payable</span>
+                  <span className="text-charcoal font-bold font-serif text-sm">{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(finalTotal)}</span>
+                </div>
+                <div className="flex justify-between items-center pt-2">
+                  <span className="text-taupe-muted">Delivery Address</span>
+                  <span className="text-charcoal font-medium text-right max-w-[200px] truncate">{addressLine}, {city}</span>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-beige-divider flex flex-col sm:flex-row justify-between items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setCheckoutStep('payment')}
+                  className="text-taupe-muted hover:text-charcoal text-xs font-semibold uppercase tracking-wider cursor-pointer"
+                >
+                  Retry Payment Link
+                </button>
+                <button
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={handleConfirmOrder}
+                  className="w-full sm:w-auto bg-charcoal hover:bg-charcoal/90 text-alabaster font-bold px-6 py-3 rounded-lg text-xs tracking-[0.12em] uppercase transition-colors cursor-pointer flex items-center justify-center gap-2 shadow-md disabled:opacity-50"
+                >
+                  {isSubmitting ? (
+                    <RefreshCw className="w-4 h-4 animate-spin text-alabaster" />
+                  ) : (
+                    <CheckCircle className="w-4 h-4 text-champagne-gold" />
+                  )}
+                  <span>{isSubmitting ? 'Verifying Order...' : 'Confirm Order & View Invoice'}</span>
+                </button>
               </div>
             </div>
           )}
@@ -868,290 +551,6 @@ export default function CheckoutModal({ isOpen, cartItems, cartTotal, onClose, o
         </div>
 
       </div>
-
-      {/* Interactive Razorpay Gateway Simulator Overlay */}
-      {showRazorpaySim && (
-        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/85 backdrop-blur-sm p-4 overflow-y-auto font-sans">
-          <div className="relative w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-2xl my-8">
-            
-            {/* Top Security Status Bar */}
-            <div className="bg-slate-950 px-4 py-2 flex justify-between items-center text-[10px] text-slate-400 border-b border-slate-800">
-              <span className="flex items-center gap-1.5">
-                <Lock className="w-3 h-3 text-emerald-500" />
-                SECURE END-TO-END ENCRYPTED GATEWAY (TLS 1.3)
-              </span>
-              <span className="font-mono text-emerald-400 font-bold uppercase tracking-wider">Razorpay Sandbox</span>
-            </div>
-
-            {/* Simulated Razorpay Brand Header */}
-            <div className="p-6 bg-[#0c1322] border-b border-slate-800 flex justify-between items-center">
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center font-bold text-white text-sm tracking-tighter">R</div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-white tracking-wide">Deeshop Atelier</h3>
-                    <p className="text-[10px] text-slate-400">Order ID: order_rzp_{Math.floor(100000 + Math.random() * 900000)}</p>
-                  </div>
-                </div>
-              </div>
-              <div className="text-right space-y-0.5">
-                <span className="text-[10px] text-slate-400 uppercase tracking-widest block">Amount to Pay</span>
-                <span className="text-xl font-bold text-emerald-400 font-mono">
-                  {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(finalTotal)}
-                </span>
-              </div>
-            </div>
-
-            {rzpStep === 'select' && (
-              <div className="grid grid-cols-1 md:grid-cols-12 min-h-[280px]">
-                {/* Method selector list (5 cols) */}
-                <div className="md:col-span-5 bg-slate-950 border-r border-slate-800 flex flex-col divide-y divide-slate-800 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setRzpMethod('upi')}
-                    className={`p-4 flex items-center gap-3 text-left transition-all cursor-pointer ${rzpMethod === 'upi' ? 'bg-indigo-950/40 text-indigo-400 font-bold border-l-4 border-indigo-500' : 'text-slate-300 hover:bg-slate-900'}`}
-                  >
-                    <QrCode className="w-4 h-4 shrink-0 text-indigo-400" />
-                    <div>
-                      <span className="block font-medium">UPI / QR Settle</span>
-                      <span className="text-[9px] text-slate-500 font-light block">GPay, PhonePe, Paytm</span>
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setRzpMethod('card')}
-                    className={`p-4 flex items-center gap-3 text-left transition-all cursor-pointer ${rzpMethod === 'card' ? 'bg-indigo-950/40 text-indigo-400 font-bold border-l-4 border-indigo-500' : 'text-slate-300 hover:bg-slate-900'}`}
-                  >
-                    <CreditCard className="w-4 h-4 shrink-0 text-indigo-400" />
-                    <div>
-                      <span className="block font-medium">Card Payment</span>
-                      <span className="text-[9px] text-slate-500 font-light block">Visa, Mastercard, RuPay</span>
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setRzpMethod('netbanking')}
-                    className={`p-4 flex items-center gap-3 text-left transition-all cursor-pointer ${rzpMethod === 'netbanking' ? 'bg-indigo-950/40 text-indigo-400 font-bold border-l-4 border-indigo-500' : 'text-slate-300 hover:bg-slate-900'}`}
-                  >
-                    <Building className="w-4 h-4 shrink-0 text-indigo-400" />
-                    <div>
-                      <span className="block font-medium">Netbanking</span>
-                      <span className="text-[9px] text-slate-500 font-light block">All Indian Retail Banks</span>
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setRzpMethod('wallet')}
-                    className={`p-4 flex items-center gap-3 text-left transition-all cursor-pointer ${rzpMethod === 'wallet' ? 'bg-indigo-950/40 text-indigo-400 font-bold border-l-4 border-indigo-500' : 'text-slate-300 hover:bg-slate-900'}`}
-                  >
-                    <Wallet className="w-4 h-4 shrink-0 text-indigo-400" />
-                    <div>
-                      <span className="block font-medium">Digital Wallet</span>
-                      <span className="text-[9px] text-slate-500 font-light block">Paytm, Mobikwik</span>
-                    </div>
-                  </button>
-                </div>
-
-                {/* Details Form Pane (7 cols) */}
-                <div className="md:col-span-7 p-6 bg-slate-900 flex flex-col justify-between text-xs space-y-4">
-                  
-                  {/* UPI Inputs */}
-                  {rzpMethod === 'upi' && (
-                    <div className="space-y-4">
-                      <div className="bg-slate-950 p-3.5 rounded border border-slate-800 text-center space-y-2">
-                        <span className="text-[9px] text-indigo-400 font-bold tracking-widest block uppercase">Simulated Instant QR Code</span>
-                        <div className="inline-block bg-white p-2 rounded-lg">
-                          <img
-                            src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=upi://pay?pa=${encodeURIComponent(merchantUpiId)}%26am=1.00%26cu=INR`}
-                            alt="Razorpay Test QR"
-                            className="w-24 h-24"
-                            referrerPolicy="no-referrer"
-                          />
-                        </div>
-                        <p className="text-[10px] text-slate-400 leading-relaxed">
-                          Scan to auto-fill the test sequence or specify your test UPI address below:
-                        </p>
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="text-[10px] text-slate-400 block font-semibold uppercase">Enter VPA / UPI ID</label>
-                        <input
-                          type="text"
-                          value={rzpUpiId}
-                          onChange={(e) => setRzpUpiId(e.target.value)}
-                          placeholder="e.g. customer@okhdfcbank"
-                          className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-indigo-500"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Card Inputs */}
-                  {rzpMethod === 'card' && (
-                    <div className="space-y-3">
-                      <span className="text-[9px] text-indigo-400 font-bold tracking-widest block uppercase">Credit or Debit Card Settle</span>
-                      
-                      <div className="space-y-1">
-                        <label className="text-[10px] text-slate-400 block font-semibold uppercase">Card Number</label>
-                        <input
-                          type="text"
-                          value={rzpCardNumber}
-                          onChange={(e) => setRzpCardNumber(e.target.value)}
-                          placeholder="4242 4242 4242 4242"
-                          className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-indigo-500"
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <label className="text-[10px] text-slate-400 block font-semibold uppercase">Expiry Date</label>
-                          <input
-                            type="text"
-                            value={rzpCardExpiry}
-                            onChange={(e) => setRzpCardExpiry(e.target.value)}
-                            placeholder="MM/YY"
-                            className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-indigo-500"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[10px] text-slate-400 block font-semibold uppercase">CVV / CVC</label>
-                          <input
-                            type="password"
-                            value={rzpCardCvv}
-                            onChange={(e) => setRzpCardCvv(e.target.value)}
-                            placeholder="•••"
-                            className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-indigo-500"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Netbanking Inputs */}
-                  {rzpMethod === 'netbanking' && (
-                    <div className="space-y-3">
-                      <span className="text-[9px] text-indigo-400 font-bold tracking-widest block uppercase">Select Netbanking Provider</span>
-                      
-                      <div className="grid grid-cols-2 gap-2">
-                        {['SBI', 'HDFC Bank', 'ICICI Bank', 'Axis Bank', 'Kotak', 'PNB'].map((b) => (
-                          <button
-                            key={b}
-                            type="button"
-                            onClick={() => setRzpBank(b)}
-                            className={`p-3 rounded border text-left transition-all ${rzpBank === b ? 'bg-indigo-950/40 border-indigo-500 text-indigo-400 font-semibold' : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'}`}
-                          >
-                            {b}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Wallet Inputs */}
-                  {rzpMethod === 'wallet' && (
-                    <div className="space-y-3">
-                      <span className="text-[9px] text-indigo-400 font-bold tracking-widest block uppercase">Select Mobile Wallet</span>
-                      
-                      <div className="space-y-2">
-                        {['Paytm Wallet', 'PhonePe Wallet', 'Mobikwik Balance', 'Amazon Pay'].map((w) => (
-                          <button
-                            key={w}
-                            type="button"
-                            onClick={() => setRzpWallet(w)}
-                            className={`w-full p-2.5 rounded border text-left flex justify-between items-center transition-all ${rzpWallet === w ? 'bg-indigo-950/40 border-indigo-500 text-indigo-400 font-semibold' : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'}`}
-                          >
-                            <span>{w}</span>
-                            <span className="text-[10px] text-emerald-400">Pre-linked</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Action Bottom Pay Button */}
-                  <div className="pt-4 border-t border-slate-800 space-y-3">
-                    <button
-                      type="button"
-                      onClick={handleRazorpayPaymentSimSubmit}
-                      className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-indigo-600/20 text-xs uppercase tracking-wider"
-                    >
-                      <ShieldCheck className="w-4 h-4 text-white" />
-                      <span>Pay securely {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(finalTotal)}</span>
-                    </button>
-
-                    <div className="flex items-center justify-center gap-4 text-[9px] text-slate-500 uppercase tracking-widest">
-                      <span>✓ 100% SECURED</span>
-                      <span>✓ DIRECT BANKING CHANNEL</span>
-                    </div>
-                  </div>
-
-                </div>
-              </div>
-            )}
-
-            {/* PROCESSING LOADER STATE */}
-            {rzpStep === 'processing' && (
-              <div className="p-12 flex flex-col items-center justify-center text-center space-y-6 min-h-[300px]">
-                <RefreshCw className="w-12 h-12 text-indigo-500 animate-spin" />
-                <div className="space-y-1.5">
-                  <h4 className="text-white font-bold text-sm uppercase tracking-wider">Securing Direct Bank Transfer...</h4>
-                  <p className="text-xs text-slate-400 max-w-sm">
-                    Exchanging token handshakes, checking VPA/Card credentials, and performing double HMAC security validation.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* SUCCESS CONFIRMED STATE */}
-            {rzpStep === 'success' && (
-              <div className="p-12 flex flex-col items-center justify-center text-center space-y-4 min-h-[300px] bg-indigo-950/20">
-                <div className="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500 flex items-center justify-center animate-bounce">
-                  <CheckCircle className="w-10 h-10 text-emerald-500" />
-                </div>
-                <div className="space-y-1">
-                  <h4 className="text-white font-bold text-base uppercase tracking-widest">Payment Captured!</h4>
-                  <p className="text-xs text-slate-300">
-                    Razorpay Reference signature validated. Confirming delivery parameters...
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* LIVE CONSOLE LOG STREAM */}
-            <div className="bg-slate-950 border-t border-slate-800 p-4 space-y-2">
-              <div className="flex justify-between items-center text-[9px] text-slate-500 font-mono tracking-widest border-b border-slate-900 pb-1.5">
-                <span>GATEWAY SYSTEM TELEMETRY LOGGER</span>
-                <span className="flex items-center gap-1.5 text-emerald-400 font-bold">
-                  <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping" />
-                  ONLINE
-                </span>
-              </div>
-              <div className="font-mono text-[9px] space-y-1 max-h-[100px] overflow-y-auto text-indigo-300/80 scrollbar-thin">
-                {rzpLogs.map((log, i) => (
-                  <p key={i} className="leading-relaxed font-light break-all">{log}</p>
-                ))}
-              </div>
-            </div>
-
-            {/* Cancel Button */}
-            <div className="bg-slate-950 px-4 py-3 flex justify-between items-center text-[11px] text-slate-500 border-t border-slate-800">
-              <span>Customer IP: 106.210.{Math.floor(10 + Math.random() * 89)}.{Math.floor(10 + Math.random() * 89)}</span>
-              <button
-                type="button"
-                onClick={() => setShowRazorpaySim(false)}
-                className="text-slate-400 hover:text-white transition-colors cursor-pointer text-xs font-semibold px-2 py-1 rounded bg-slate-900 hover:bg-slate-800"
-              >
-                Cancel Settle
-              </button>
-            </div>
-
-          </div>
-        </div>
-      )}
-
     </div>
   );
 }

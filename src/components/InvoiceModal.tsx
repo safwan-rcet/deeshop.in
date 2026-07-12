@@ -105,7 +105,7 @@ export default function InvoiceModal({ isOpen, order, onClose }: InvoiceModalPro
               <h4 className="font-semibold text-charcoal print:text-neutral-500 uppercase tracking-wider mb-2">
                 Transaction Details
               </h4>
-              <p><span className="font-medium text-taupe-muted">Gateway:</span> {order.paymentMethod === 'UPI' ? 'Razorpay UPI Secure' : order.paymentMethod === 'Stripe' ? 'Stripe Secure' : 'Cash on Delivery (COD)'}</p>
+              <p><span className="font-medium text-taupe-muted">Gateway:</span> {order.paymentMethod === 'UPI' ? 'Google Pay / UPI' : 'Direct Payment'}</p>
               <p><span className="font-medium text-taupe-muted">Transaction ID:</span> TXN-{order.id.split('-')[1]?.toUpperCase() || 'DEE9938'}</p>
               <p><span className="font-medium text-taupe-muted">Security:</span> 256-Bit SSL Secured Encryption</p>
               <p className="mt-1 text-taupe-muted print:text-neutral-500">Delivery via: BlueDart Premium Air</p>
