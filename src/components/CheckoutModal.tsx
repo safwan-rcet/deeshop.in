@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CartItem, Order } from '../types';
-import { CreditCard, QrCode, Truck, ShieldCheck, RefreshCw, CheckCircle, Info, Lock, Building, Wallet, Terminal } from 'lucide-react';
+import { CreditCard, QrCode, Truck, ShieldCheck, RefreshCw, CheckCircle, Info, Lock, Building, Wallet, Terminal, ExternalLink } from 'lucide-react';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -14,7 +14,7 @@ interface CheckoutModalProps {
 export default function CheckoutModal({ isOpen, cartItems, cartTotal, onClose, onOrderSuccess, onOpenRazorpayGuide }: CheckoutModalProps) {
   // Form state
   const [fullName, setFullName] = useState('');
-  const [phone, setPhone] = useState('');
+  const [phone, setPhone] = useState('9895678163');
   const [addressLine, setAddressLine] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('Delhi');
@@ -38,7 +38,23 @@ export default function CheckoutModal({ isOpen, cartItems, cartTotal, onClose, o
   const [razorpayKeyId, setRazorpayKeyId] = useState<string>(() => {
     return (import.meta.env.VITE_RAZORPAY_KEY_ID as string) || '';
   });
+  const [merchantUpiId, setMerchantUpiId] = useState<string>(() => {
+    return (import.meta.env.VITE_MERCHANT_UPI_ID as string) || 'razorpay.me/@muhammedsafwanvv';
+  });
   const [showKeyInput, setShowKeyInput] = useState(false);
+
+  // Helper to parse UPI ID or Razorpay Personal pay link
+  const getQrData = () => {
+    const cleanId = merchantUpiId.trim();
+    if (!cleanId) return '';
+    if (cleanId.includes('razorpay.me') || cleanId.startsWith('http://') || cleanId.startsWith('https://')) {
+      if (!cleanId.startsWith('http')) {
+        return `https://${cleanId}`;
+      }
+      return cleanId;
+    }
+    return `upi://pay?pa=${encodeURIComponent(cleanId)}&pn=DeeShop%20Atelier&am=1.00&cu=INR&tn=Order`;
+  };
 
   // Razorpay Gateway Simulator States
   const [showRazorpaySim, setShowRazorpaySim] = useState(false);
@@ -246,8 +262,7 @@ export default function CheckoutModal({ isOpen, cartItems, cartTotal, onClose, o
         },
         prefill: {
           name: fullName || 'Valued Customer',
-          email: 'customer@deeshop.in',
-          contact: phone || '9988776655'
+          contact: phone || '9895678163'
         },
         notes: {
           address: `${addressLine}, ${city}, ${state} - ${pincode}`,
@@ -490,7 +505,7 @@ export default function CheckoutModal({ isOpen, cartItems, cartTotal, onClose, o
                   <div className="bg-sand-light border border-beige-divider p-4 rounded-lg flex flex-col sm:flex-row items-center gap-6">
                     <div className="bg-white p-3 rounded-lg border border-beige-divider shadow-sm shrink-0 flex flex-col items-center justify-center relative">
                       <img
-                        src="https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=upi://pay?pa=deeshop@ybl%26pn=DeeShop%2520Atelier%26am=1.00%26cu=INR%26tn=Order"
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(getQrData())}`}
                         alt="UPI QR Code"
                         className="w-32 h-32"
                         referrerPolicy="no-referrer"
@@ -501,12 +516,38 @@ export default function CheckoutModal({ isOpen, cartItems, cartTotal, onClose, o
                     <div className="flex-1 space-y-3 text-center sm:text-left">
                       <div className="flex items-center justify-center sm:justify-start gap-2">
                         <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
-                        <span className="text-xs text-taupe-muted font-medium">Scan with BHIM, GPay, PhonePe, or Paytm</span>
+                        <span className="text-xs text-taupe-muted font-medium">
+                          {merchantUpiId.includes('razorpay.me') ? 'Scan to open your Razorpay Pay Link' : 'Scan with BHIM, GPay, PhonePe, or Paytm'}
+                        </span>
                       </div>
-                      <h4 className="font-medium text-charcoal text-base">Pay securely via UPI QR Code</h4>
+                      <h4 className="font-medium text-charcoal text-base">
+                        {merchantUpiId.includes('razorpay.me') ? 'Pay via Razorpay Personal Link' : 'Pay securely via UPI QR Code'}
+                      </h4>
                       <p className="text-xs text-taupe-muted leading-relaxed">
-                        Scan the dynamically generated Razorpay QR with any UPI app on your smartphone to complete the transaction of <span className="text-champagne-gold font-bold">{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(finalTotal)}</span>.
+                        {merchantUpiId.includes('razorpay.me') ? (
+                          <>
+                            Scan the QR with your smartphone camera to access <span className="text-charcoal font-semibold">muhammedsafwanvv</span>'s secure payment page, or click the link below to pay directly on this device:
+                          </>
+                        ) : (
+                          <>
+                            Scan the dynamically generated Razorpay QR with any UPI app on your smartphone to complete the transaction of <span className="text-champagne-gold font-bold">{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(finalTotal)}</span>.
+                          </>
+                        )}
                       </p>
+
+                      {merchantUpiId.includes('razorpay.me') && (
+                        <div className="pt-1.5 pb-1 flex justify-center sm:justify-start">
+                          <a
+                            href={getQrData()}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-4 py-2 bg-champagne-gold text-charcoal hover:bg-champagne-gold/95 font-bold text-[10px] tracking-wider uppercase rounded-lg shadow-sm transition-colors cursor-pointer"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                            Open Razorpay Pay Link
+                          </a>
+                        </div>
+                      )}
                       
                       {upiStatus === 'pending' ? (
                         <div className="text-xs font-mono text-taupe-muted bg-white px-3 py-1.5 border border-beige-divider rounded inline-block">
@@ -568,10 +609,11 @@ export default function CheckoutModal({ isOpen, cartItems, cartTotal, onClose, o
                     </div>
 
                     {showKeyInput && (
-                      <div className="bg-white p-3 rounded border border-beige-divider space-y-3 animate-fadeIn">
+                      <div className="bg-white p-3 rounded border border-beige-divider space-y-4 animate-fadeIn">
                         <p className="text-[11px] text-taupe-muted leading-relaxed">
-                          Enter your real <span className="font-semibold text-charcoal">Razorpay Key ID</span> below. Payments will be routed through the secure, official Razorpay Checkout SDK. To persist this permanently across Vercel/GitHub deployments, define the <code className="bg-sand-soft text-charcoal px-1 py-0.5 rounded font-mono text-[10px]">VITE_RAZORPAY_KEY_ID</code> environment variable.
+                          Enter your real <span className="font-semibold text-charcoal">Razorpay Key ID</span> and <span className="font-semibold text-charcoal">Merchant UPI ID</span> below. To persist these permanently across Vercel/GitHub deployments, define the <code className="bg-sand-soft text-charcoal px-1 py-0.5 rounded font-mono text-[10px]">VITE_RAZORPAY_KEY_ID</code> and <code className="bg-sand-soft text-charcoal px-1 py-0.5 rounded font-mono text-[10px]">VITE_MERCHANT_UPI_ID</code> environment variables.
                         </p>
+                        
                         <div className="space-y-1.5">
                           <label className="text-[10px] text-taupe-muted uppercase tracking-wider font-bold block">Razorpay Key ID</label>
                           <div className="flex gap-2">
@@ -592,7 +634,30 @@ export default function CheckoutModal({ isOpen, cartItems, cartTotal, onClose, o
                               </button>
                             )}
                           </div>
-                        </div>
+                                         <div className="space-y-1.5 pt-1 border-t border-beige-divider/50">
+                          <label className="text-[10px] text-taupe-muted uppercase tracking-wider font-bold block">Merchant UPI Address or Razorpay Link (for QR Codes)</label>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={merchantUpiId}
+                              onChange={(e) => setMerchantUpiId(e.target.value)}
+                              placeholder="e.g. razorpay.me/@muhammedsafwanvv or safwaanvv@ybl"
+                              className="flex-1 bg-sand-light border border-beige-divider rounded px-2.5 py-1.5 font-mono text-xs text-charcoal focus:outline-none focus:border-champagne-gold"
+                            />
+                            {merchantUpiId !== 'razorpay.me/@muhammedsafwanvv' && (
+                              <button
+                                type="button"
+                                onClick={() => setMerchantUpiId('razorpay.me/@muhammedsafwanvv')}
+                                className="text-taupe-muted hover:text-charcoal font-semibold px-2 text-[10px] uppercase cursor-pointer"
+                              >
+                                Reset Default
+                              </button>
+                            )}
+                          </div>
+                          <span className="text-[9px] text-amber-600 font-medium block mt-1">
+                            ⚠️ Note: The previous hardcoded value "deeshop@ybl" belonged to a developer account (Sujith). Changing this field updates the QR code instantly so scanners query your own secure merchant handle or Razorpay link.
+                          </span>
+                        </div>              </div>
                       </div>
                     )}
                   </div>
@@ -900,7 +965,7 @@ export default function CheckoutModal({ isOpen, cartItems, cartTotal, onClose, o
                         <span className="text-[9px] text-indigo-400 font-bold tracking-widest block uppercase">Simulated Instant QR Code</span>
                         <div className="inline-block bg-white p-2 rounded-lg">
                           <img
-                            src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=upi://pay?pa=deeshop@ybl%26am=1.00%26cu=INR"
+                            src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=upi://pay?pa=${encodeURIComponent(merchantUpiId)}%26am=1.00%26cu=INR`}
                             alt="Razorpay Test QR"
                             className="w-24 h-24"
                             referrerPolicy="no-referrer"
